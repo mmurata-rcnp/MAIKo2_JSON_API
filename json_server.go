@@ -110,6 +110,7 @@ func select_test(c *gin.Context) {
 		rows.Scan(&ind.RunID, &ind.PlaneID, &ind.BoardID, &ind.FilePath,
 			&ind.EventDataAddress, &ind.EventDataLength, &ind.EventFADCWordsOffset, &ind.EventTPCWordsOffset)
 		indexes = append(indexes, ind)
+		fmt.Println(ind)
 	}
 
 	chResults := make(chan DecodeRawFileResult, len(indexes))
@@ -134,6 +135,11 @@ func select_test(c *gin.Context) {
 			results = append(results, result)
 			if result.GoodFlag {
 				evt.AddFragment(result.Fragment)
+			} else {
+				fmt.Println("ill decode")
+				fmt.Println(result.Fragment.PlaneID)
+				fmt.Println(result.Fragment.BoardID)
+				fmt.Println(len(result.Fragment.FADCData))
 			}
 			fmt.Println(len(results))
 		}
@@ -149,7 +155,7 @@ func select_test(c *gin.Context) {
 	var ret APIFormat
 	ret.AnodeHit = EncodeHitsIntoTOTArray(evt.GetHits(0))
 	ret.CathodeHit = EncodeHitsIntoTOTArray(evt.GetHits(1))
-	for iCh := uint32(0); iCh < 16; iCh++ {
+	for iCh := uint32(0); iCh < 24; iCh++ {
 		ret.AnodeFADC = append(ret.AnodeFADC, evt.GetSignal(0, iCh))
 		ret.CathodeFADC = append(ret.CathodeFADC, evt.GetSignal(1, iCh))
 	}
@@ -366,11 +372,11 @@ func DecodeRawFile(ind EventIndex, eventNumber uint64) (FragmentedEventData, boo
 	data.Counter.ClockCounter = counterData[1]
 	data.Counter.ScalerCounter = counterData[2]
 
-	if ind.EventDataAddress != 0 && ind.EventTPCWordsOffset != 0 {
+	if ind.EventFADCWordsOffset != 0 && ind.EventTPCWordsOffset != 0 {
 		fadcData = append(fadcData, wordsEvent[ind.EventFADCWordsOffset:ind.EventTPCWordsOffset-1]...)
 		tpcData = append(tpcData, wordsEvent[ind.EventTPCWordsOffset:len(wordsEvent)-1]...)
 	}
-
+	fmt.Println("length == ", len(wordsEvent), len(fadcData), len(tpcData))
 	signals := make([][]uint16, 4)
 	if len(fadcData) > 0 && len(fadcData)%2 == 0 {
 		for i := 0; i < len(fadcData); i = i + 2 {
@@ -391,6 +397,9 @@ func DecodeRawFile(ind EventIndex, eventNumber uint64) (FragmentedEventData, boo
 				signals[2] = append(signals[2], sWord2&0x3ff)
 				signals[3] = append(signals[3], sWord3&0x3ff)
 			}
+			// } else {
+			// 	fmt.Println(sWord0)
+			// }
 		}
 	}
 
@@ -434,6 +443,10 @@ func DecodeRawFile(ind EventIndex, eventNumber uint64) (FragmentedEventData, boo
 
 	data.FADCData = signals
 	data.TPCData = hits
+
+	// if len(data.FADCData[0]) != len(fadcData)*2 {
+	// 	return data, false
+	// }
 
 	return data, true
 }
