@@ -8,23 +8,27 @@ import (
 	"log"
 	"sort"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	// "fmt"
 	"os"
 	"strconv"
 
+	"time"
+
 	_ "github.com/lib/pq"
 )
 
-type DataBaseInformation struct {
-	UserName       string `json:"UserName"`
-	Password       string `json:"Password"`
-	RawEventsTable string `json:"RawEventsTable"`
-	RawFilesTable  string `json:"RawFilesTable"`
+type ConfigurationInformation struct {
+	UserName           string   `json:"UserName"`
+	Password           string   `json:"Password"`
+	RawEventsTable     string   `json:"RawEventsTable"`
+	RawFilesTable      string   `json:"RawFilesTable"`
+	AllowedOriginsCORS []string `json:"AllowedOriginsCORS"`
 }
 
-var dbInfo DataBaseInformation
+var confInfo ConfigurationInformation
 
 func main() {
 
@@ -34,14 +38,15 @@ func main() {
 	}
 	// JSONデコード
 
-	if err := json.Unmarshal(bytes, &dbInfo); err != nil {
+	if err := json.Unmarshal(bytes, &confInfo); err != nil {
 		log.Fatal(err)
 	}
 	// デコードしたデータを表示
-	fmt.Printf("UserName : %s\n", dbInfo.UserName)
-	fmt.Printf("Password : %s\n", dbInfo.Password)
-	fmt.Printf("RawEventsTable : %s\n", dbInfo.RawEventsTable)
-	fmt.Printf("RawFilesTable : %s\n", dbInfo.RawFilesTable)
+	fmt.Printf("UserName : %s\n", confInfo.UserName)
+	fmt.Printf("Password : %s\n", confInfo.Password)
+	fmt.Printf("RawEventsTable : %s\n", confInfo.RawEventsTable)
+	fmt.Printf("RawFilesTable : %s\n", confInfo.RawFilesTable)
+	fmt.Printf("AllowedOriginsCORS : %s\n", confInfo.AllowedOriginsCORS)
 
 	r := gin.Default()
 	// r.GET("/ping", func(c *gin.Context) {
@@ -49,6 +54,24 @@ func main() {
 	// 		"message": "pong",
 	// 	})
 	// })
+
+	r.Use(cors.New(cors.Config{
+		// アクセスを許可したいアクセス元
+		AllowOrigins: confInfo.AllowedOriginsCORS,
+
+		// アクセスを許可したいHTTPメソッド
+		AllowMethods: []string{"GET", "POST"},
+
+		// 許可したいHTTPリクエストヘッダ
+		AllowHeaders: []string{"Access-Control-Allow-Headers", "Content-Length", "Content-Type", "Authorization"},
+
+		// cookieなどの認証情報を含めるか否か(通常デフォルトfalseなので合わせました)
+		AllowCredentials: false,
+
+		// プリフライトリクエストのキャッシュ時間
+		MaxAge: 12 * time.Hour,
+	}))
+
 	r.GET("/get/:run_id/:event_number", select_test)
 	r.Run() // 0.0.0.0:8080 でサーバーを立てます。
 }
@@ -66,7 +89,7 @@ type EventIndex struct {
 
 func select_test(c *gin.Context) {
 	// db, err := sql.Open("postgres", "host=postgres port=5432 user=quser dbmane=quser password=rcnpdaq sslmode=disable")
-	postgresOption := "user=" + dbInfo.UserName + " " + "password=" + dbInfo.Password
+	postgresOption := "user=" + confInfo.UserName + " " + "password=" + confInfo.Password
 	db, err := sql.Open("postgres", postgresOption)
 
 	run_id, _ := strconv.Atoi(c.Param("run_id"))
@@ -83,8 +106,8 @@ func select_test(c *gin.Context) {
 		"e.run_id, e.plane_id, e.board_id, f.file_path, " +
 		"e.event_data_address, e.event_data_length, " +
 		"e.event_fadc_words_offset, e.event_tpc_words_offset " +
-		"FROM " + dbInfo.RawEventsTable + " AS e " +
-		"INNER JOIN " + dbInfo.RawFilesTable + " AS f ON " +
+		"FROM " + confInfo.RawEventsTable + " AS e " +
+		"INNER JOIN " + confInfo.RawFilesTable + " AS f ON " +
 		"e.run_id = f.run_id AND " +
 		"e.plane_id = f.plane_id AND " +
 		"e.board_id = f.board_id AND " +
@@ -110,7 +133,7 @@ func select_test(c *gin.Context) {
 		rows.Scan(&ind.RunID, &ind.PlaneID, &ind.BoardID, &ind.FilePath,
 			&ind.EventDataAddress, &ind.EventDataLength, &ind.EventFADCWordsOffset, &ind.EventTPCWordsOffset)
 		indexes = append(indexes, ind)
-		fmt.Println(ind)
+		// fmt.Println(ind)
 	}
 
 	chResults := make(chan DecodeRawFileResult, len(indexes))
@@ -126,7 +149,7 @@ func select_test(c *gin.Context) {
 				result.GoodFlag = good
 				chResult <- result
 			}(index, uint64(event_number), chResults)
-			fmt.Println(len(indexes))
+			// fmt.Println(len(indexes))
 		}
 		// DecodeRawFile(indexes[1], uint64(event_number))
 
@@ -141,7 +164,7 @@ func select_test(c *gin.Context) {
 				fmt.Println(result.Fragment.BoardID)
 				fmt.Println(len(result.Fragment.FADCData))
 			}
-			fmt.Println(len(results))
+			// fmt.Println(len(results))
 		}
 	} else {
 		c.JSON(500, gin.H{"Error": "No such event."})
@@ -376,7 +399,7 @@ func DecodeRawFile(ind EventIndex, eventNumber uint64) (FragmentedEventData, boo
 		fadcData = append(fadcData, wordsEvent[ind.EventFADCWordsOffset:ind.EventTPCWordsOffset-1]...)
 		tpcData = append(tpcData, wordsEvent[ind.EventTPCWordsOffset:len(wordsEvent)-1]...)
 	}
-	fmt.Println("length == ", len(wordsEvent), len(fadcData), len(tpcData))
+	// fmt.Println("length == ", len(wordsEvent), len(fadcData), len(tpcData))
 	signals := make([][]uint16, 4)
 	if len(fadcData) > 0 && len(fadcData)%2 == 0 {
 		for i := 0; i < len(fadcData); i = i + 2 {

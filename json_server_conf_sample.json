@@ -2,5 +2,12 @@
     "UserName": "NAME IN POSTGRESSQL DATABASE",
     "Password": "PASSWORD FOR LOGGING IN POSTGRESSQL",
     "RawEventsTable": "NAME OF RAW EVENTS TABLE IN YOUR DATABASE",
-    "RawFilesTable": "NAME OF RAW FILES TABLE IN YOUR DATABASE"
+    "RawFilesTable": "NAME OF RAW FILES TABLE IN YOUR DATABASE",
+    "AllowedOriginsCORS": [
+        "ORIGINS ALLOWED TO ACCESS THIS API",
+        "THIS IS FOR PASSING RESTRICTION ON CORS",
+        "FOR EXAMPLE",
+        "http://localhost:3000",
+        "http:[DOMAIN NAME OF WEB SERVICE]:[PORT]"
+    ]
 }
