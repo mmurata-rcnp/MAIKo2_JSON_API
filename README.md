@@ -14,11 +14,13 @@
             Name of "raw events table" in your environment
         - RawFilesTable
             Name of "raw files table" in your environment
+        - AllowedOriginsCORS
+            Names of the hosts which Cross-Origin Resource Sharing (CORS) is allowed
 
 ## Usage
 1. Set up server
     $ go run json_server.go
-2. Accessing via 8080 port of the machine on which the server program runs.
+2. Access via port 8080 of the machine on which the server program runs.
     e.g. [IP address of the server]:8080/get/40/1 
         (run40, event1)
 
